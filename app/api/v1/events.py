@@ -1,0 +1,85 @@
+import json
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.auth import verify_api_key
+from app.core.database import get_db
+from app.models.event import Event
+from app.models.persona import Persona
+from app.schemas.persona import EventCreate, EventResponse
+
+router = APIRouter(tags=["events"], dependencies=[Depends(verify_api_key)])
+
+
+@router.post("/track", response_model=EventResponse, status_code=201)
+async def track_event(
+    body: EventCreate,
+    distinct_id: str = Query(..., description="The persona's distinct_id to track against"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Track an event for a persona by distinct_id.
+
+    This is the primary ingestion endpoint — similar to PostHog's /capture.
+    If the persona doesn't exist yet, it will be created automatically.
+    """
+    # Find or create persona by distinct_id
+    result = await db.execute(select(Persona).where(Persona.distinct_id == distinct_id))
+    persona = result.scalar_one_or_none()
+    if not persona:
+        persona = Persona(distinct_id=distinct_id)
+        db.add(persona)
+        await db.flush()
+
+    event = Event(
+        persona_id=persona.id,
+        event_type=body.event_type,
+        properties=json.dumps(body.properties) if body.properties else None,
+        timestamp=body.timestamp or datetime.now(timezone.utc),
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+
+    return _event_to_response(event)
+
+
+@router.get("/personas/{persona_id}/events", response_model=list[EventResponse])
+async def get_persona_events(
+    persona_id: str,
+    limit: int = Query(default=50, le=500),
+    offset: int = Query(default=0, ge=0),
+    event_type: str | None = Query(default=None, description="Filter by event type"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the event timeline for a persona."""
+    persona = await db.get(Persona, persona_id)
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+
+    query = select(Event).where(Event.persona_id == persona_id)
+    if event_type:
+        query = query.where(Event.event_type == event_type)
+    query = query.order_by(Event.timestamp.desc()).offset(offset).limit(limit)
+
+    result = await db.execute(query)
+    return [_event_to_response(e) for e in result.scalars().all()]
+
+
+def _event_to_response(event: Event) -> EventResponse:
+    """Convert an Event model to an EventResponse, parsing the JSON properties."""
+    props = None
+    if event.properties:
+        try:
+            props = json.loads(event.properties)
+        except json.JSONDecodeError:
+            props = {"_raw": event.properties}
+
+    return EventResponse(
+        id=event.id,
+        event_type=event.event_type,
+        properties=props,
+        timestamp=event.timestamp,
+    )
