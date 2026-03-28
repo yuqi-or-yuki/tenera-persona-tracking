@@ -60,7 +60,7 @@
     </div>
 
     <script>
-        const API_KEY = prompt('Enter your API key:', '') || '';
+        const API_KEY = 'demo-api-key-2024';
         const headers = { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' };
 
         async function fetchJSON(path, opts = {}) {
@@ -95,7 +95,7 @@
                     metricsEl.innerHTML += `<div class="metric"><div class="metric-value">${latest.davies_bouldin}</div><div class="metric-label">Davies-Bouldin</div></div>`;
                 }
 
-                renderAssignments(latest.assignments);
+                renderAssignments(latest.assignments, latest.cluster_summaries || {});
             }
 
             // History
@@ -116,7 +116,7 @@
             el.innerHTML = html;
         }
 
-        function renderAssignments(assignments) {
+        function renderAssignments(assignments, summaries) {
             const el = document.getElementById('assignments-container');
             if (!assignments || !assignments.length) { el.innerHTML = '<div class="empty">No assignments</div>'; return; }
 
@@ -132,7 +132,13 @@
             let html = '';
             for (const [label, group] of Object.entries(groups)) {
                 const color = colors[Math.abs(parseInt(label)) % colors.length];
-                html += `<div class="cluster-group"><h3><span class="badge ${color}">${group.name}</span> (${group.members.length} personas)</h3>`;
+                const clusterLlm = summaries && summaries[String(label)];
+                const summary = clusterLlm && (typeof clusterLlm === 'object' ? clusterLlm.summary : clusterLlm);
+                html += `<div class="cluster-group">`;
+                html += `<h3><span class="badge ${color}">${group.name}</span> <span class="cluster-count">${group.members.length} personas</span></h3>`;
+                if (summary) {
+                    html += `<div class="cluster-summary">${summary}</div>`;
+                }
                 html += '<table><thead><tr><th>Distinct ID</th><th>Name</th></tr></thead><tbody>';
                 for (const m of group.members) {
                     html += `<tr><td>${m.distinct_id || '--'}</td><td>${m.persona_name || '--'}</td></tr>`;

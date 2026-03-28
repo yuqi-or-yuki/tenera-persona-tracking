@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     # Auth
     api_key: str = "change-me-in-production"
 
+    # LLM for cluster NER + summarization (via litellm)
+    anthropic_api_key: Optional[str] = None
+    azure_api_key: Optional[str] = None
+    azure_api_base: Optional[str] = None
+    azure_api_version: Optional[str] = None
+    llm_model: str = "azure/gpt-5.4-mini"
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000

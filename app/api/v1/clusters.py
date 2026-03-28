@@ -1,6 +1,7 @@
 """Clustering API endpoints."""
 
-from typing import List, Optional
+import json
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -86,6 +87,13 @@ async def _enrich_run(run: ClusterRun, db: AsyncSession) -> ClusterRunResponse:
             )
         )
 
+    summaries: Optional[Dict[str, Any]] = None
+    if run.cluster_summaries:
+        try:
+            summaries = json.loads(run.cluster_summaries)
+        except Exception:
+            pass
+
     return ClusterRunResponse(
         id=run.id,
         algorithm=run.algorithm,
@@ -95,6 +103,7 @@ async def _enrich_run(run: ClusterRun, db: AsyncSession) -> ClusterRunResponse:
         silhouette_score=run.silhouette_score,
         calinski_harabasz=run.calinski_harabasz,
         davies_bouldin=run.davies_bouldin,
+        cluster_summaries=summaries,
         created_at=run.created_at,
         assignments=enriched_assignments,
     )

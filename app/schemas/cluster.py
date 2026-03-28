@@ -30,6 +30,7 @@ class ClusterRunResponse(BaseModel):
     silhouette_score: Optional[str] = None
     calinski_harabasz: Optional[str] = None
     davies_bouldin: Optional[str] = None
+    cluster_summaries: Optional[Dict[str, Any]] = None  # {str(label): "summary text"}
     created_at: datetime
     assignments: List[ClusterAssignmentResponse] = []
 

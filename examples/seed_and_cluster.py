@@ -4,12 +4,13 @@ Creates 20 personas across different segments, then runs K-Means
 to discover natural clusters. Start the server first: `tpt serve`
 """
 
+import os
 import random
 
 import httpx
 
 BASE_URL = "http://localhost:8000"
-API_KEY = "your-api-key-here"
+API_KEY = os.environ.get("TPT_API_KEY", "your-api-key-here")
 HEADERS = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
 
 # Realistic persona templates

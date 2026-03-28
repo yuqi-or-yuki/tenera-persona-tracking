@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session
 from app.models.cluster import ClusterAssignment, ClusterRun
-from app.models.entity import Entity
 from app.models.persona import Persona
 
 
@@ -54,7 +53,6 @@ async def run_clustering_from_db(
         # Run the selected algorithm
         if algorithm == "kmeans":
             if "n_clusters" not in params:
-                # Auto-detect optimal K
                 optimal = find_optimal_k(personas)
                 params["n_clusters"] = optimal["optimal_k"]
             result = run_kmeans(personas, **params)
@@ -67,6 +65,21 @@ async def run_clustering_from_db(
             result = run_kprototypes(personas, **params)
         else:
             raise ValueError(f"Unknown algorithm: {algorithm}")
+
+        # Build cluster groups for NER + LLM summarization
+        personas_by_id = {p["id"]: p for p in personas}
+        cluster_groups: Dict[int, Any] = {}
+        for persona_id, label in zip(result["persona_ids"], result["labels"]):
+            if label not in cluster_groups:
+                cluster_groups[label] = {
+                    "name": result["cluster_names"].get(label, f"Cluster {label}"),
+                    "member_ids": [],
+                }
+            cluster_groups[label]["member_ids"].append(persona_id)
+
+        # NER + LLM summarization (gracefully skipped if no API key)
+        from app.clustering.llm import summarize_clusters
+        summaries = summarize_clusters(cluster_groups, personas_by_id)
 
         # Store the run
         run = ClusterRun(
@@ -83,13 +96,18 @@ async def run_clustering_from_db(
             davies_bouldin=str(result["metrics"].get("davies_bouldin", ""))
             if result.get("metrics")
             else None,
+            cluster_summaries=json.dumps({str(k): v for k, v in summaries.items()}) if summaries else None,
         )
         db.add(run)
         await db.flush()
 
-        # Store assignments
+        # Store assignments — use LLM name if available, fall back to auto-generated
         for persona_id, label in zip(result["persona_ids"], result["labels"]):
-            cluster_name = result["cluster_names"].get(label, f"Cluster {label}")
+            llm_result = summaries.get(label, {})
+            cluster_name = (
+                llm_result.get("name")
+                or result["cluster_names"].get(label, f"Cluster {label}")
+            )
             assignment = ClusterAssignment(
                 run_id=run.id,
                 persona_id=persona_id,
@@ -106,5 +124,9 @@ async def run_clustering_from_db(
             "num_clusters": result["num_clusters"],
             "num_personas": len(personas),
             "metrics": result.get("metrics", {}),
-            "cluster_names": result["cluster_names"],
+            "cluster_names": {
+                label: (summaries.get(label, {}).get("name") or name)
+                for label, name in result["cluster_names"].items()
+            },
+            "cluster_summaries": summaries,
         }

@@ -20,6 +20,7 @@ class ClusterRun(Base):
     silhouette_score: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     calinski_harabasz: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     davies_bouldin: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    cluster_summaries: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON: {"label": "summary"}
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
