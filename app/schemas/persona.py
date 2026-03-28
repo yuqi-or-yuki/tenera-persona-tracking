@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -30,8 +31,8 @@ class EventCreate(BaseModel):
     """Track an event for a persona."""
 
     event_type: str = Field(..., max_length=255, examples=["page_view"])
-    properties: dict | None = Field(default=None, examples=[{"page": "/pricing"}])
-    timestamp: datetime | None = Field(
+    properties: Optional[Dict] = Field(default=None, examples=[{"page": "/pricing"}])
+    timestamp: Optional[datetime] = Field(
         default=None, description="ISO 8601 timestamp. Defaults to now if omitted."
     )
 
@@ -39,7 +40,7 @@ class EventCreate(BaseModel):
 class EventResponse(BaseModel):
     id: str
     event_type: str
-    properties: dict | None = None
+    properties: Optional[Dict] = None
     timestamp: datetime
 
     model_config = {"from_attributes": True}
@@ -54,9 +55,9 @@ class PersonaCreate(BaseModel):
     distinct_id: str = Field(
         ..., max_length=255, description="Your unique user identifier (user ID, email, etc.)"
     )
-    name: str | None = Field(default=None, max_length=255)
-    description: str | None = None
-    entities: list[EntitySet] | None = Field(
+    name: Optional[str] = Field(default=None, max_length=255)
+    description: Optional[str] = None
+    entities: Optional[List[EntitySet]] = Field(
         default=None, description="Initial key-value entities to set on the persona."
     )
 
@@ -64,22 +65,22 @@ class PersonaCreate(BaseModel):
 class PersonaUpdate(BaseModel):
     """Update a persona's core fields."""
 
-    name: str | None = None
-    description: str | None = None
+    name: Optional[str] = None
+    description: Optional[str] = None
 
 
 class PersonaResponse(BaseModel):
     id: str
     distinct_id: str
-    name: str | None
-    description: str | None
+    name: Optional[str]
+    description: Optional[str]
     created_at: datetime
     updated_at: datetime
-    entities: list[EntityResponse] = []
+    entities: List[EntityResponse] = []
 
     model_config = {"from_attributes": True}
 
 
 class PersonaListResponse(BaseModel):
-    results: list[PersonaResponse]
+    results: List[PersonaResponse]
     count: int

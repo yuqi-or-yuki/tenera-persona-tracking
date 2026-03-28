@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -46,12 +47,12 @@ async def track_event(
     return _event_to_response(event)
 
 
-@router.get("/personas/{persona_id}/events", response_model=list[EventResponse])
+@router.get("/personas/{persona_id}/events", response_model=List[EventResponse])
 async def get_persona_events(
     persona_id: str,
     limit: int = Query(default=50, le=500),
     offset: int = Query(default=0, ge=0),
-    event_type: str | None = Query(default=None, description="Filter by event type"),
+    event_type: Optional[str] = Query(default=None, description="Filter by event type"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get the event timeline for a persona."""

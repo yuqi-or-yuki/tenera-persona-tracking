@@ -1,7 +1,12 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, generate_uuid
+
+if TYPE_CHECKING:
+    from app.models.persona import Persona
 
 
 class Entity(Base, TimestampMixin):
@@ -24,7 +29,7 @@ class Entity(Base, TimestampMixin):
     key: Mapped[str] = mapped_column(String(255), nullable=False)
     value: Mapped[str] = mapped_column(Text, nullable=False)
 
-    persona: Mapped["Persona"] = relationship("Persona", back_populates="entities")  # noqa: F821
+    persona: Mapped["Persona"] = relationship("Persona", back_populates="entities")
 
     __table_args__ = (
         UniqueConstraint("persona_id", "key", name="uq_persona_entity_key"),

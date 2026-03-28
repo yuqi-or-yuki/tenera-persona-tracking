@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Open-source persona tracking and cohort analytics engine. API-first, designed to integrate with Tenera."
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
@@ -17,7 +17,13 @@ dependencies = [
     "supabase>=2.0.0",
     "aiosqlite>=0.20.0",
     "asyncpg>=0.30.0",
+    "typer>=0.15.0",
+    "rich>=13.0.0",
+    "eval_type_backport>=0.3.0; python_version < '3.10'",
 ]
+
+[project.scripts]
+tpt = "app.cli.main:cli"
 
 [project.optional-dependencies]
 dev = [
@@ -27,11 +33,14 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py39"
 line-length = 100
 
 [tool.ruff.lint]

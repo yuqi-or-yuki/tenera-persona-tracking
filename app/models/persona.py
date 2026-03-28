@@ -1,7 +1,13 @@
+from typing import TYPE_CHECKING, List, Optional
+
 from sqlalchemy import String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, generate_uuid
+
+if TYPE_CHECKING:
+    from app.models.entity import Entity
+    from app.models.event import Event
 
 
 class Persona(Base, TimestampMixin):
@@ -16,12 +22,12 @@ class Persona(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
     distinct_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    entities: Mapped[list["Entity"]] = relationship(  # noqa: F821
+    entities: Mapped[List["Entity"]] = relationship(
         "Entity", back_populates="persona", cascade="all, delete-orphan", lazy="selectin"
     )
-    events: Mapped[list["Event"]] = relationship(  # noqa: F821
+    events: Mapped[List["Event"]] = relationship(
         "Event", back_populates="persona", cascade="all, delete-orphan", lazy="selectin"
     )

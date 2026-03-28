@@ -1,4 +1,4 @@
-import json
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -28,10 +28,14 @@ async def create_persona(body: PersonaCreate, db: AsyncSession = Depends(get_db)
     """Create a new persona with an optional set of initial entities."""
     existing = await db.execute(select(Persona).where(Persona.distinct_id == body.distinct_id))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail=f"Persona with distinct_id '{body.distinct_id}' already exists")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Persona with distinct_id '{body.distinct_id}' already exists",
+        )
 
     persona = Persona(distinct_id=body.distinct_id, name=body.name, description=body.description)
     db.add(persona)
+    await db.flush()  # Ensure persona.id is populated before creating entities
 
     if body.entities:
         for e in body.entities:
@@ -46,7 +50,9 @@ async def create_persona(body: PersonaCreate, db: AsyncSession = Depends(get_db)
 async def list_personas(
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
-    search: str | None = Query(default=None, description="Search by distinct_id or name"),
+    search: Optional[str] = Query(
+        default=None, description="Search by distinct_id or name"
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """List all personas with optional search."""
@@ -104,9 +110,9 @@ async def delete_persona(persona_id: str, db: AsyncSession = Depends(get_db)):
 # --- Entity CRUD ---
 
 
-@router.post("/{persona_id}/entities", response_model=list[EntityResponse])
+@router.post("/{persona_id}/entities", response_model=List[EntityResponse])
 async def set_entities(
-    persona_id: str, body: list[EntitySet], db: AsyncSession = Depends(get_db)
+    persona_id: str, body: List[EntitySet], db: AsyncSession = Depends(get_db)
 ):
     """Set key-value entities on a persona. Existing keys are overwritten."""
     persona = await db.get(Persona, persona_id)
@@ -133,7 +139,7 @@ async def set_entities(
     return results
 
 
-@router.get("/{persona_id}/entities", response_model=list[EntityResponse])
+@router.get("/{persona_id}/entities", response_model=List[EntityResponse])
 async def get_entities(persona_id: str, db: AsyncSession = Depends(get_db)):
     """Get all entities for a persona."""
     persona = await db.get(Persona, persona_id)
