@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.table import Table
 
 from app.cli.client import api
+from app.cli.commands.cluster import app as cluster_app
 from app.cli.commands.entity import app as entity_app
 from app.cli.commands.persona import app as persona_app
 from app.cli.commands.server import app as server_app
@@ -20,6 +21,7 @@ cli = typer.Typer(
 
 cli.add_typer(persona_app, name="persona", help="Manage personas")
 cli.add_typer(entity_app, name="entity", help="Manage entities on personas")
+cli.add_typer(cluster_app, name="cluster", help="Clustering and cohort analysis")
 cli.add_typer(server_app, name="serve", help="Start the server")
 
 console = Console()

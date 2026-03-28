@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenera Persona Tracking</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Tenera Persona Tracking</h1>
+            <div class="subtitle">Open-source persona tracking &amp; cohort analytics</div>
+        </header>
+
+        <div class="grid">
+            <div class="card">
+                <h2>Personas</h2>
+                <div class="stat" id="persona-count">--</div>
+                <div class="stat-label">Total tracked personas</div>
+            </div>
+            <div class="card">
+                <h2>Latest Clustering</h2>
+                <div class="stat" id="cluster-count">--</div>
+                <div class="stat-label" id="cluster-algo">No runs yet</div>
+                <div class="metric-row" id="cluster-metrics"></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 24px;">
+            <h2>Clustering</h2>
+            <div class="actions">
+                <button class="btn btn-primary" onclick="runClustering('kmeans')">Run K-Means</button>
+                <button class="btn" onclick="runClustering('hdbscan')">Run HDBSCAN</button>
+                <button class="btn" onclick="runClustering('kprototypes')">Run K-Prototypes</button>
+            </div>
+            <div id="status"></div>
+        </div>
+
+        <div class="card" style="margin-bottom: 24px;">
+            <h2>Cluster Assignments</h2>
+            <div id="assignments-container">
+                <div class="empty">Run a clustering to see results</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 24px;">
+            <h2>Personas</h2>
+            <div id="personas-container">
+                <div class="empty">Loading...</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Run History</h2>
+            <div id="history-container">
+                <div class="empty">No clustering runs yet</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = prompt('Enter your API key:', '') || '';
+        const headers = { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' };
+
+        async function fetchJSON(path, opts = {}) {
+            const resp = await fetch(path, { headers, ...opts });
+            if (!resp.ok) return null;
+            if (resp.status === 204) return null;
+            return resp.json();
+        }
+
+        async function loadDashboard() {
+            // Personas
+            const personas = await fetchJSON('/api/v1/personas?limit=200');
+            if (personas) {
+                document.getElementById('persona-count').textContent = personas.count;
+                renderPersonas(personas.results);
+            }
+
+            // Latest cluster run
+            const latest = await fetchJSON('/api/v1/clusters/latest');
+            if (latest) {
+                document.getElementById('cluster-count').textContent = latest.num_clusters + ' clusters';
+                document.getElementById('cluster-algo').textContent =
+                    latest.algorithm + ' · ' + latest.num_personas + ' personas · ' + latest.created_at.slice(0, 16);
+
+                // Metrics
+                const metricsEl = document.getElementById('cluster-metrics');
+                metricsEl.innerHTML = '';
+                if (latest.silhouette_score) {
+                    metricsEl.innerHTML += `<div class="metric"><div class="metric-value">${latest.silhouette_score}</div><div class="metric-label">Silhouette</div></div>`;
+                }
+                if (latest.davies_bouldin) {
+                    metricsEl.innerHTML += `<div class="metric"><div class="metric-value">${latest.davies_bouldin}</div><div class="metric-label">Davies-Bouldin</div></div>`;
+                }
+
+                renderAssignments(latest.assignments);
+            }
+
+            // History
+            const runs = await fetchJSON('/api/v1/clusters/runs');
+            if (runs && runs.length > 0) renderHistory(runs);
+        }
+
+        function renderPersonas(personas) {
+            const el = document.getElementById('personas-container');
+            if (!personas.length) { el.innerHTML = '<div class="empty">No personas yet</div>'; return; }
+
+            let html = '<table><thead><tr><th>Distinct ID</th><th>Name</th><th>Entities</th><th>Created</th></tr></thead><tbody>';
+            for (const p of personas) {
+                const entities = (p.entities || []).map(e => `<span class="badge badge-blue">${e.key}=${e.value}</span>`).join(' ');
+                html += `<tr><td><strong>${p.distinct_id}</strong></td><td>${p.name || '--'}</td><td>${entities}</td><td>${p.created_at.slice(0,10)}</td></tr>`;
+            }
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        }
+
+        function renderAssignments(assignments) {
+            const el = document.getElementById('assignments-container');
+            if (!assignments || !assignments.length) { el.innerHTML = '<div class="empty">No assignments</div>'; return; }
+
+            // Group by cluster
+            const groups = {};
+            for (const a of assignments) {
+                const key = a.cluster_label;
+                if (!groups[key]) groups[key] = { name: a.cluster_name, members: [] };
+                groups[key].members.push(a);
+            }
+
+            const colors = ['badge-blue', 'badge-green', 'badge-yellow', 'badge-purple'];
+            let html = '';
+            for (const [label, group] of Object.entries(groups)) {
+                const color = colors[Math.abs(parseInt(label)) % colors.length];
+                html += `<div class="cluster-group"><h3><span class="badge ${color}">${group.name}</span> (${group.members.length} personas)</h3>`;
+                html += '<table><thead><tr><th>Distinct ID</th><th>Name</th></tr></thead><tbody>';
+                for (const m of group.members) {
+                    html += `<tr><td>${m.distinct_id || '--'}</td><td>${m.persona_name || '--'}</td></tr>`;
+                }
+                html += '</tbody></table></div>';
+            }
+            el.innerHTML = html;
+        }
+
+        function renderHistory(runs) {
+            const el = document.getElementById('history-container');
+            let html = '<table><thead><tr><th>Time</th><th>Algorithm</th><th>Clusters</th><th>Personas</th><th>Silhouette</th></tr></thead><tbody>';
+            for (const r of runs) {
+                html += `<tr><td>${r.created_at.slice(0,16)}</td><td><span class="badge badge-purple">${r.algorithm}</span></td><td>${r.num_clusters}</td><td>${r.num_personas}</td><td>${r.silhouette_score || '--'}</td></tr>`;
+            }
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        }
+
+        async function runClustering(algo) {
+            document.getElementById('status').textContent = `Running ${algo}...`;
+            const resp = await fetchJSON('/api/v1/clusters/run', {
+                method: 'POST',
+                body: JSON.stringify({ algorithm: algo }),
+            });
+            if (resp) {
+                document.getElementById('status').textContent =
+                    `Done: ${resp.num_clusters} clusters found (silhouette: ${resp.metrics?.silhouette_score || 'N/A'})`;
+                loadDashboard();
+            } else {
+                document.getElementById('status').textContent = 'Clustering failed — check server logs';
+            }
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>
